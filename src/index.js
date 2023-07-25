@@ -29,17 +29,23 @@ const optsSimplBox = {
 };
 const lightbox = new SimpleLightbox('.gallery a', optsSimplBox);
 
+const optObserv = {
+  root: null,
+  rootMargin: "300px",
+  threshold: 0,
+};
+const observer = new IntersectionObserver(doPagination, optObserv);
+
 let page = 1;
 
 const refs = {
   form: document.querySelector('.search-form'),
   gallery: document.querySelector('.gallery'),
-  btnMore: document.querySelector('.more'),
+  sentinel: document.querySelector('.js-sentinel'),
   pgnum: document.querySelector('.pgnum'),
 };
 
 refs.form.addEventListener('submit', goSearch);
-refs.btnMore.addEventListener('click', goMore);
 
 async function goSearch(ev) {
   ev.preventDefault();
@@ -51,33 +57,29 @@ async function goSearch(ev) {
     Notify.failure('Sorry, there are no images matching your search query. Please try again.', optNotiflx);
   }
   if (images.totalHits > configAx.params.per_page) {
-    refs.btnMore.style.display = 'block';
+    observer.observe(refs.sentinel);
   }
   refs.gallery.innerHTML = await createMarkup(images.hits);
   lightbox.refresh();
-
   refs.pgnum.textContent = `Page ${page}`;
-
-  // const { height: cardHeight } = document.querySelector(".gallery").firstElementChild.getBoundingClientRect();
-
-  // window.scrollBy({
-  // top: cardHeight * 2,
-  // behavior: "smooth",
-  // });
 }
 
-async function goMore() {
-  const searchString = refs.form.searchQuery.value.split(' ').join('+');
-  page += 1;
-  const images = await serviceGetImages(searchString, page);
-  refs.gallery.insertAdjacentHTML('beforeend', await createMarkup(images.hits));
-  lightbox.refresh();
-  refs.pgnum.textContent = `Page ${page}`;
-  if (page >= 13) {
-    console.log('page= ', page);
-    refs.btnMore.style.display = 'none';
-    Notify.info("We're sorry, but you've reached the end of search results.", optNotiflx);
-  }
+async function doPagination(entries, observer) {
+  entries.forEach(async entry => {
+    if (entry.isIntersecting) {
+      page += 1;
+      const searchString = refs.form.searchQuery.value.split(' ').join('+');
+      const images = await serviceGetImages(searchString, page);
+      refs.gallery.insertAdjacentHTML('beforeend', await createMarkup(images.hits));
+      lightbox.refresh();
+      refs.pgnum.textContent = `Page ${page}`;
+      if (page >= 13) {
+        observer.unobserve(entry.target);
+        Notify.info("We're sorry, but you've reached the end of search results.", optNotiflx);
+      }
+    }
+  });
 }
+
 
 export { configAx };
